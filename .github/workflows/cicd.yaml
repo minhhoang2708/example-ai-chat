@@ -1,5 +1,5 @@
 # This workflow lints, tests, builds, and deploys a Python Lambda for multiple environments.
-name: Lint, Test, Build, and Deploy Lambda
+name: CICD pipeline
 
 on:
   # Trigger on pushes to main, qa, or version tags
