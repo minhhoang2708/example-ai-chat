@@ -1,5 +1,3 @@
-"""A Pulumi program to deploy an AWS Lambda function."""
-
 import json
 import pulumi
 import pulumi_aws as aws
@@ -42,9 +40,8 @@ lambda_function = aws.lambda_.Function(
     f"{project_name}-lambda-function-{stack_name}",
     # The handler value is `filename.function_name`.
     handler="lambda_function.handler",
-    runtime="python3.11", # Note: AWS Lambda may not support 3.13 yet, 3.11 is a safe choice.
+    runtime="python3.13",
     role=lambda_role.arn,
-    # CHANGE: The path is now relative to the infrastructure/ directory.
     code=pulumi.FileArchive("../lambda.zip"),
     description="A simple Python Lambda function deployed with Pulumi.",
     tags={
