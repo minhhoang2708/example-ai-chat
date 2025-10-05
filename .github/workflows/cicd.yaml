@@ -1,106 +1,158 @@
-# This workflow builds a Python Lambda function and deploys it with Pulumi.
-name: Build and Deploy Lambda with Pulumi
+# This workflow lints, tests, builds, and deploys a Python Lambda for multiple environments.
+name: Lint, Test, Build, and Deploy Lambda
 
-# Controls when the action will run.
-# Triggers the workflow on push events but only for the main branch.
 on:
+  # 1. Trigger on pushes to the main branch (for dev deployment)
   push:
     branches:
       - main
-  workflow_dispatch: # Allows manual triggering of the workflow
+    tags:
+      - 'v*.*.*' # 2. Trigger on version tags (e.g., v1.0.0) for prod deployment
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+  # 3. Trigger on pull requests targeting the main branch (for linting, testing, and preview)
+  pull_request:
+    branches:
+      - main
+  
+  workflow_dispatch:
+
 jobs:
   # -------------------------------------------------
-  # Job 1: Build the Lambda ZIP file
+  # Job 1: Lint Codebase
+  # Runs on all triggers to ensure code quality.
   # -------------------------------------------------
-  build:
-    name: Build Lambda ZIP
+  lint:
+    name: Lint Codebase
     runs-on: ubuntu-latest
-
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: Checkout Repository
         uses: actions/checkout@v4
-
-      # Sets up the Python version
       - name: Set up Python 3.13
         uses: actions/setup-python@v5
         with:
           python-version: 3.13
+      - name: Install Lint Dependencies
+        run: pip install flake8
+      - name: Run Flake8
+        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
 
-      # Creates the zip file containing the lambda code
-      # Assumes your lambda function code is in a 'lambda' directory.
+  # -------------------------------------------------
+  # Job 2: Run Unit Tests
+  # Runs on all triggers after linting is successful.
+  # -------------------------------------------------
+  unit_test:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.13
+      - name: Install Test Dependencies
+        run: pip install -r ./lambda/requirements-test.txt
+      - name: Run Pytest
+        run: pytest ./lambda/
+
+  # -------------------------------------------------
+  # Job 3: Pulumi Preview
+  # ONLY runs on pull requests to show planned infrastructure changes.
+  # -------------------------------------------------
+  pulumi_preview:
+    name: Pulumi Preview (Dev)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    needs: unit_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - uses: pulumi/actions@v5
+        with:
+          command: preview
+          stack-name: dev
+        env:
+          PULUMI_S3_BACKEND_BUCKET: ${{ secrets.PULUMI_S3_BUCKET }}/${{ secrets.PULUMI_STATE_FOLDER }}
+          WORKING_DIR: ./infrastructure
+
+  # -------------------------------------------------
+  # Job 4: Build Artifact
+  # Runs on pushes to main or tag pushes, after tests pass.
+  # -------------------------------------------------
+  build:
+    name: Build Lambda ZIP
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: unit_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.13
       - name: Create Lambda ZIP file
         run: |
-          echo "Zipping lambda function code..."
-          zip -r lambda.zip ./lambda
-
-      # Uploads the zip file as an artifact to be used in the next job
-      - name: Upload Lambda ZIP artifact
-        uses: actions/upload-artifact@v4
+          pip install -r ./lambda/requirements.txt --target ./lambda
+          cd ./lambda && zip -r ../lambda.zip .
+      - uses: actions/upload-artifact@v4
         with:
           name: lambda-zip
           path: lambda.zip
 
   # -------------------------------------------------
-  # Job 2: Deploy the Lambda using Pulumi
+  # Job 5: Deploy to Development
+  # Runs ONLY on pushes to the 'main' branch.
   # -------------------------------------------------
-  deploy:
-    name: Deploy with Pulumi
+  deploy_dev:
+    name: Deploy to Dev
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
-    needs: build # This job will only run after the 'build' job is successful
-
+    needs: build
+    environment: development
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      # Configure AWS credentials using Access Key and Secret Key
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
-          # The AWS Access Key ID.
-          # Stored as a secret in GitHub repository settings.
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          # The AWS Secret Access Key.
-          # Stored as a secret in GitHub repository settings.
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          # The AWS region to deploy to.
-          # Stored as a secret in GitHub repository settings.
           aws-region: ${{ secrets.AWS_REGION }}
-
-      # Download the lambda.zip file created in the 'build' job
-      - name: Download Lambda ZIP artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
+        with: { name: lambda-zip }
+      - uses: pulumi/actions@v5
         with:
-          name: lambda-zip
-
-      # Install Pulumi CLI
-      - name: Install Pulumi
-        uses: pulumi/actions@v5
-
-      # Set up the Python version for the Pulumi program
-      - name: Set up Python 3.13
-        uses: actions/setup-python@v5
-        with:
-          python-version: 3.13
-
-      # Install Python dependencies for the Pulumi project
-      - name: Install Pulumi Dependencies
-        run: pip install -r requirements.txt
-
-      # Log in to the Pulumi S3 backend.
-      # Pulumi will automatically create the folder (prefix) in S3 if it doesn't exist.
-      - name: Login to Pulumi S3 Backend
-        run: pulumi login s3://${{ secrets.PULUMI_S3_BUCKET }}/${{ secrets.PULUMI_STATE_FOLDER }}
+          command: up
+          stack-name: dev
         env:
-          AWS_REGION: ${{ secrets.AWS_REGION }}
+          PULUMI_S3_BACKEND_BUCKET: ${{ secrets.PULUMI_S3_BUCKET }}/${{ secrets.PULUMI_STATE_FOLDER }}
+          WORKING_DIR: ./infrastructure
 
-      # Select the stack. The --create flag creates the stack if it does not exist.
-      - name: Select Pulumi Stack
-        run: pulumi stack select dev --create
-
-      # Run `pulumi up` to preview and deploy changes.
-      # The --yes flag automatically approves the changes.
-      - name: Run Pulumi Up
-        run: pulumi up --yes
+  # -------------------------------------------------
+  # Job 6: Deploy to Production
+  # Runs ONLY when a version tag (e.g., v1.0.1) is pushed.
+  # -------------------------------------------------
+  deploy_prod:
+    name: Deploy to Prod
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    needs: build
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - uses: actions/download-artifact@v4
+        with: { name: lambda-zip }
+      - uses: pulumi/actions@v5
+        with:
+          command: up
+          stack-name: prod
+        env:
+          PULUMI_S3_BACKEND_BUCKET: ${{ secrets.PULUMI_S3_BUCKET }}/${{ secrets.PULUMI_STATE_FOLDER }}
+          WORKING_DIR: ./infrastructure
