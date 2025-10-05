@@ -2,67 +2,50 @@
 name: Lint, Test, Build, and Deploy Lambda
 
 on:
-  # 1. Trigger on pushes to the main branch (for dev deployment)
+  # Trigger on pushes to main, qa, or version tags
   push:
     branches:
       - main
+      - qa
     tags:
-      - 'v*.*.*' # 2. Trigger on version tags (e.g., v1.0.0) for prod deployment
-
-  # 3. Trigger on pull requests targeting the main branch (for linting, testing, and preview)
-  pull_request:
-    branches:
-      - main
+      - 'v*.*.*'
   
   workflow_dispatch:
 
 jobs:
   # -------------------------------------------------
-  # Job 1: Lint Codebase
-  # Runs on all triggers to ensure code quality.
+  # Quality Checks (Run on all triggers)
   # -------------------------------------------------
   # lint:
   #   name: Lint Codebase
   #   runs-on: ubuntu-latest
   #   steps:
-  #     - name: Checkout Repository
-  #       uses: actions/checkout@v4
-  #     - name: Set up Python 3.13
-  #       uses: actions/setup-python@v5
-  #       with:
-  #         python-version: 3.13
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-python@v5
+  #       with: { python-version: 3.13 }
   #     - name: Install Lint Dependencies
   #       run: pip install flake8
   #     - name: Run Flake8
   #       run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
 
-  # -------------------------------------------------
-  # Job 2: Run Unit Tests
-  # Runs on all triggers after linting is successful.
-  # -------------------------------------------------
   # unit_test:
   #   name: Run Unit Tests
   #   runs-on: ubuntu-latest
   #   needs: lint
   #   steps:
-  #     - name: Checkout Repository
-  #       uses: actions/checkout@v4
-  #     - name: Set up Python 3.13
-  #       uses: actions/setup-python@v5
-  #       with:
-  #         python-version: 3.13
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-python@v5
+  #       with: { python-version: 3.13 }
   #     - name: Install Test Dependencies
   #       run: pip install -r ./lambda/requirements-test.txt
   #     - name: Run Pytest
   #       run: pytest ./lambda/
 
   # -------------------------------------------------
-  # Job 3: Pulumi Preview
-  # ONLY runs on pull requests to show planned infrastructure changes.
+  # Pulumi Preview (Only on Pull Requests)
   # -------------------------------------------------
   pulumi_preview:
     name: Pulumi Preview (Dev)
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -80,36 +63,51 @@ jobs:
           WORKING_DIR: ./infrastructure
 
   # -------------------------------------------------
-  # Job 4: Build Artifact
-  # Runs on pushes to main or tag pushes, after tests pass.
+  # Build Jobs (One for each environment)
   # -------------------------------------------------
-  build:
-    name: Build Lambda ZIP
-    if: github.event_name == 'push'
+  build_dev:
+    name: Build for Dev
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: 3.13
-      - name: Create Lambda ZIP file
+      - name: Create Lambda ZIP
         run: |
           pip install -r ./lambda/requirements.txt --target ./lambda
           cd ./lambda && zip -r ../lambda.zip .
       - uses: actions/upload-artifact@v4
-        with:
-          name: lambda-zip
-          path: lambda.zip
+        with: { name: lambda-zip-dev, path: lambda.zip }
+
+  build_qa:
+    name: Build for QA
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create Lambda ZIP
+        run: |
+          pip install -r ./lambda/requirements.txt --target ./lambda
+          cd ./lambda && zip -r ../lambda.zip .
+      - uses: actions/upload-artifact@v4
+        with: { name: lambda-zip-qa, path: lambda.zip }
+
+  build_prod:
+    name: Build for Prod
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create Lambda ZIP
+        run: |
+          pip install -r ./lambda/requirements.txt --target ./lambda
+          cd ./lambda && zip -r ../lambda.zip .
+      - uses: actions/upload-artifact@v4
+        with: { name: lambda-zip-prod, path: lambda.zip }
 
   # -------------------------------------------------
-  # Job 5: Deploy to Development
-  # Runs ONLY on pushes to the 'main' branch.
+  # Deploy Jobs (One for each environment)
   # -------------------------------------------------
   deploy_dev:
     name: Deploy to Dev
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
-    needs: build
+    needs: build_dev
     environment: development
     steps:
       - uses: actions/checkout@v4
@@ -119,7 +117,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
       - uses: actions/download-artifact@v4
-        with: { name: lambda-zip }
+        with: { name: lambda-zip-dev }
       - uses: pulumi/actions@v5
         with:
           command: up
@@ -128,15 +126,32 @@ jobs:
           PULUMI_S3_BACKEND_BUCKET: ${{ secrets.PULUMI_S3_BUCKET }}/${{ secrets.PULUMI_STATE_FOLDER }}
           WORKING_DIR: ./infrastructure
 
-  # -------------------------------------------------
-  # Job 6: Deploy to Production
-  # Runs ONLY when a version tag (e.g., v1.0.1) is pushed.
-  # -------------------------------------------------
+  deploy_qa:
+    name: Deploy to QA
+    runs-on: ubuntu-latest
+    needs: build_qa
+    environment: qa # Note: You'll need to create a 'qa' environment in your repo settings
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - uses: actions/download-artifact@v4
+        with: { name: lambda-zip-qa }
+      - uses: pulumi/actions@v5
+        with:
+          command: up
+          stack-name: qa # Assumes a 'qa' Pulumi stack
+        env:
+          PULUMI_S3_BACKEND_BUCKET: ${{ secrets.PULUMI_S3_BUCKET }}/${{ secrets.PULUMI_STATE_FOLDER }}
+          WORKING_DIR: ./infrastructure
+
   deploy_prod:
     name: Deploy to Prod
-    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    needs: build
+    needs: build_prod
     environment: production
     steps:
       - uses: actions/checkout@v4
@@ -146,7 +161,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
       - uses: actions/download-artifact@v4
-        with: { name: lambda-zip }
+        with: { name: lambda-zip-prod }
       - uses: pulumi/actions@v5
         with:
           command: up
