@@ -44,25 +44,25 @@ jobs:
   # -------------------------------------------------
   # Pulumi Preview (Only on Pull Requests)
   # -------------------------------------------------
-  pulumi_preview:
-    name: Pulumi Preview (Dev)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-      - uses: pulumi/actions@v5
-        with:
-          command: preview
-          stack-name: dev
-        env:
-          PULUMI_S3_BACKEND_BUCKET: ${{ secrets.PULUMI_S3_BUCKET }}/${{ secrets.PULUMI_STATE_FOLDER }}
-          WORKING_DIR: ./infrastructure
-          PULUMI_BACKEND_URL: ${{ secrets.PULUMI_BACKEND_URL }}
-          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+  # pulumi_preview:
+  #   name: Pulumi Preview (Dev)
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: aws-actions/configure-aws-credentials@v4
+  #       with:
+  #         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #         aws-region: ${{ secrets.AWS_REGION }}
+  #     - uses: pulumi/actions@v5
+  #       with:
+  #         command: preview
+  #         stack-name: dev
+  #       env:
+  #         PULUMI_S3_BACKEND_BUCKET: ${{ secrets.PULUMI_S3_BUCKET }}/${{ secrets.PULUMI_STATE_FOLDER }}
+  #         WORKING_DIR: ./infrastructure
+  #         PULUMI_BACKEND_URL: ${{ secrets.PULUMI_BACKEND_URL }}
+  #         PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
 
   # -------------------------------------------------
   # Build Jobs (One for each environment)
