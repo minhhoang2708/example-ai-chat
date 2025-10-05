@@ -61,6 +61,7 @@ jobs:
         env:
           PULUMI_S3_BACKEND_BUCKET: ${{ secrets.PULUMI_S3_BUCKET }}/${{ secrets.PULUMI_STATE_FOLDER }}
           WORKING_DIR: ./infrastructure
+          PULUMI_BACKEND_URL: ${{ secrets.PULUMI_BACKEND_URL }}
 
   # -------------------------------------------------
   # Build Jobs (One for each environment)
@@ -125,6 +126,7 @@ jobs:
         env:
           PULUMI_S3_BACKEND_BUCKET: ${{ secrets.PULUMI_S3_BUCKET }}/${{ secrets.PULUMI_STATE_FOLDER }}
           WORKING_DIR: ./infrastructure
+          PULUMI_BACKEND_URL: ${{ secrets.PULUMI_BACKEND_URL }}
 
   # deploy_qa:
   #   name: Deploy to QA
