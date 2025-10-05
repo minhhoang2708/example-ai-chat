@@ -1,0 +1,5 @@
+# Configuration for the 'prod' stack.
+# This file is used by Pulumi to set environment-specific values.
+# To set a value: pulumi config set memorySize 256 --stack prod
+config:
+  my-lambda-project:memorySize: "256" # Memory in MB for the prod Lambda
