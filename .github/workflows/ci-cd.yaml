@@ -1,0 +1,233 @@
+name: Lambda MonoRepo CI/CD
+
+on:
+  push:
+    branches:
+      - main
+      - "*"
+  pull_request:
+    branches:
+      - main
+      - "*"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install dependencies
+        run: |
+          pip install -r lambdas/lambda1/requirements.txt
+          pip install -r lambdas/lambda2/requirements.txt
+          pip install -r lambdas/lambda3/requirements.txt
+      - name: Run tests
+        run: echo "No tests yet, placeholder"
+
+
+  build-lambda1-qa:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Zip Lambda1
+        run: cd lambdas/lambda1 && zip -r ../../lambda1.zip .
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lambda1-zip-qa
+          path: lambda1.zip
+
+  build-lambda2-qa:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Zip Lambda2
+        run: cd lambdas/lambda2 && zip -r ../../lambda2.zip .
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lambda2-zip-qa
+          path: lambda2.zip
+
+  build-lambda3-qa:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Zip Lambda3
+        run: cd lambdas/lambda3 && zip -r ../../lambda3.zip .
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lambda3-zip-qa
+          path: lambda3.zip
+
+  build-lambda1-prod:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Zip Lambda1
+        run: cd lambdas/lambda1 && zip -r ../../lambda1.zip .
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lambda1-zip-prod
+          path: lambda1.zip
+
+  build-lambda2-prod:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Zip Lambda2
+        run: cd lambdas/lambda2 && zip -r ../../lambda2.zip .
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lambda2-zip-prod
+          path: lambda2.zip
+
+  build-lambda3-prod:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Zip Lambda3
+        run: cd lambdas/lambda3 && zip -r ../../lambda3.zip .
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lambda3-zip-prod
+          path: lambda3.zip
+
+  deploy-lambda1-qa:
+    runs-on: ubuntu-latest
+    needs: build-lambda1-qa
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: lambda1-zip-qa
+      - name: Set up Pulumi
+        uses: pulumi/actions@v4
+        with:
+          command: up
+          stack-name: qa
+          work-dir: pulumi
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+  deploy-lambda2-qa:
+    runs-on: ubuntu-latest
+    needs: build-lambda2-qa
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: lambda2-zip-qa
+      - name: Set up Pulumi
+        uses: pulumi/actions@v4
+        with:
+          command: up
+          stack-name: qa
+          work-dir: pulumi
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+  deploy-lambda3-qa:
+    runs-on: ubuntu-latest
+    needs: build-lambda3-qa
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: lambda3-zip-qa
+      - name: Set up Pulumi
+        uses: pulumi/actions@v4
+        with:
+          command: up
+          stack-name: qa
+          work-dir: pulumi
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+  deploy-lambda1-prod:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: build-lambda1-prod
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: lambda1-zip-prod
+      - name: Set up Pulumi
+        uses: pulumi/actions@v4
+        with:
+          command: up
+          stack-name: prod
+          work-dir: pulumi
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+  deploy-lambda2-prod:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: build-lambda2-prod
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: lambda2-zip-prod
+      - name: Set up Pulumi
+        uses: pulumi/actions@v4
+        with:
+          command: up
+          stack-name: prod
+          work-dir: pulumi
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+  deploy-lambda3-prod:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: build-lambda3-prod
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: lambda3-zip-prod
+      - name: Set up Pulumi
+        uses: pulumi/actions@v4
+        with:
+          command: up
+          stack-name: prod
+          work-dir: pulumi
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

@@ -1,0 +1,2 @@
+name: aws-lambda-mono-repo
+runtime: python
