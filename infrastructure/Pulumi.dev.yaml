@@ -1,0 +1,5 @@
+# Configuration for the 'dev' stack.
+# This file is used by Pulumi to set environment-specific values.
+# To set a value: pulumi config set memorySize 128
+config:
+  my-lambda-project:memorySize: "128" # Memory in MB for the dev Lambda
