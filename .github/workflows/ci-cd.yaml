@@ -5,6 +5,8 @@ name: CI/CD Pipeline for Lambda
 on:
   # Trigger on pushes to any branch
   push:
+    branches:
+      - 'main'
   pull_request:
   workflow_dispatch:
 
