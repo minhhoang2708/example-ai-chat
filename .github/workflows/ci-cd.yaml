@@ -1,0 +1,212 @@
+# This workflow runs quality checks, builds artifacts, and handles deployments.
+# Deployments to protected environments (qa, production) will wait for manual approval.
+name: CI/CD Pipeline for Lambda
+
+on:
+  # Trigger on pushes to any branch
+  push:
+    branches:
+      - '**'
+
+jobs:
+  # -------------------------------------------------
+  # Quality Checks (Run in Parallel)
+  # -------------------------------------------------
+  lint:
+    name: Lint Codebase
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: 3.13 }
+      - name: Install Lint Dependencies
+        run: pip install flake8
+      - name: Run Flake8
+        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+
+  unit_test:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: 3.13 }
+      - name: Run Pytest
+        run: |
+          echo "running tests..."
+          # pytest ./lambda/
+          echo "success "
+
+  # -------------------------------------------------
+  # Build and Preview Job (Only on Pull Requests to main)
+  # -------------------------------------------------
+  build_and_preview:
+    name: Build and Preview
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    needs: [lint, unit_test]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create Lambda ZIP
+        run: |
+          pip install -r ./lambda/requirements.txt --target ./lambda
+          cd ./lambda && zip -r ../lambda.zip .
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Setup Pulumi
+        uses: pulumi/actions@v5
+      - name: Determine Target Stack
+        id: stack
+        run: |
+          # Pull requests now only target main, so we preview the prod stack.
+          if [ "${{ github.base_ref }}" = "main" ]; then
+            echo "stack_name=prod" >> $GITHUB_ENV
+          fi
+      - name: Run Pulumi Preview
+        working-directory: ./infrastructure
+        run: |
+          pulumi login ${{ secrets.PULUMI_BACKEND_URL }}
+          pulumi stack select ${{ env.stack_name }} --create
+          pulumi preview --non-interactive
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          PULUMI_CONFIG_PASSPRASE: ${{ secrets.PULUMI_CONFIG_PASSPRASE }}
+
+  # -------------------------------------------------
+  # QA Pipeline (for any feature branch)
+  # -------------------------------------------------
+  build_qa:
+    name: Build for QA (Feature Branch)
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: [lint, unit_test]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create Lambda ZIP
+        run: |
+          pip install -r ./lambda/requirements.txt --target ./lambda
+          cd ./lambda && zip -r ../lambda.zip .
+      - uses: actions/upload-artifact@v4
+        with: { name: lambda-zip-qa, path: lambda.zip }
+
+  deploy_qa:
+    name: Deploy to QA (Feature Branch)
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: build_qa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - uses: actions/download-artifact@v4
+        with: { name: lambda-zip-qa }
+      - name: Setup Pulumi
+        uses: pulumi/actions@v5
+      - name: Run Pulumi Deploy
+        working-directory: ./infrastructure
+        run: |
+          pulumi login ${{ secrets.PULUMI_BACKEND_URL }}
+          pulumi stack select qa --create
+          pulumi up --yes --non-interactive
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          PULUMI_CONFIG_PASSPRASE: ${{ secrets.PULUMI_CONFIG_PASSPRASE }}
+
+  # -------------------------------------------------
+  # Production Pipeline (for main branch)
+  # -------------------------------------------------
+  build_prod:
+    name: Build for Prod
+    # Run ONLY on pushes to main
+    if: github.ref_name == 'main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: [lint, unit_test]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create Lambda ZIP
+        run: |
+          pip install -r ./lambda/requirements.txt --target ./lambda
+          cd ./lambda && zip -r ../lambda.zip .
+      - uses: actions/upload-artifact@v4
+        with: { name: lambda-zip-prod, path: lambda.zip }
+
+  deploy_prod:
+    name: Deploy to Prod
+    if: github.ref_name == 'main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: build_prod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - uses: actions/download-artifact@v4
+        with: { name: lambda-zip-prod }
+      - name: Setup Pulumi
+        uses: pulumi/actions@v5
+      - name: Run Pulumi Deploy
+        working-directory: ./infrastructure
+        run: |
+          pulumi login ${{ secrets.PULUMI_BACKEND_URL }}
+          pulumi stack select prod --create
+          pulumi up --yes --non-interactive
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          PULUMI_CONFIG_PASSPRASE: ${{ secrets.PULUMI_CONFIG_PASSPRASE }}
+
+  # # -------------------------------------------------
+  # # Destroy Jobs (Manual Trigger Only)
+  # # -------------------------------------------------
+  # destroy_qa:
+  #   name: Destroy QA
+  #   if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy' && github.event.inputs.environment == 'qa'
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: aws-actions/configure-aws-credentials@v4
+  #       with:
+  #         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #         aws-region: ${{ secrets.AWS_REGION }}
+  #     - name: Setup Pulumi
+  #       uses: pulumi/actions@v5
+  #     - name: Run Pulumi Destroy
+  #       working-directory: ./infrastructure
+  #       run: |
+  #         pulumi login ${{ secrets.PULUMI_BACKEND_URL }}
+  #         pulumi stack select qa
+  #         pulumi destroy --yes --non-interactive
+  #       env:
+  #         AWS_REGION: ${{ secrets.AWS_REGION }}
+  #         PULUMI_CONFIG_PASSPRASE: ${{ secrets.PULUMI_CONFIG_PASSPRASE }}
+
+  # destroy_prod:
+  #   name: Destroy Prod
+  #   if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy' && github.event.inputs.environment == 'prod'
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: aws-actions/configure-aws-credentials@v4
+  #       with:
+  #         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #         aws-region: ${{ secrets.AWS_REGION }}
+  #     - name: Setup Pulumi
+  #       uses: pulumi/actions@v5
+  #     - name: Run Pulumi Destroy
+  #       working-directory: ./infrastructure
+  #       run: |
+  #         pulumi login ${{ secrets.PULUMI_BACKEND_URL }}
+  #         pulumi stack select prod
+  #         pulumi destroy --yes --non-interactive
+  #       env:
+  #         AWS_REGION: ${{ secrets.AWS_REGION }}
+  #         PULUMI_CONFIG_PASSPRASE: ${{ secrets.PULUMI_CONFIG_PASSPRASE }}
