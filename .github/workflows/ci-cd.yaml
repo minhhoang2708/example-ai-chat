@@ -43,9 +43,9 @@ jobs:
         working-directory: ./knowledge_base_agent
         run: |
           pip install -r requirements.txt
-          zip -r lambda.zip .
+          zip -r knowledge_base_agent.zip ../
       - uses: actions/upload-artifact@v4
-        with: { name: lambda-zip-qa, path: ./knowledge_base_agent/lambda.zip }
+        with: { name: lambda-zip-qa, path: knowledge_base_agent.zip }
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
