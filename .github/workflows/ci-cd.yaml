@@ -108,7 +108,7 @@ jobs:
       - name: Setup Pulumi
         uses: pulumi/actions@v5
       - name: Run Pulumi Preview
-        working-directory: ./infrastructure
+        working-directory: ./knowledge_base_agent/infrastructure
         run: |
           pulumi login ${{ secrets.PULUMI_BACKEND_URL }}
           pulumi stack select production --create
