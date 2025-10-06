@@ -68,8 +68,7 @@ jobs:
           pulumi preview --non-interactive
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
-          PULUMI_CONFIG_PASSPRASE: ${{ secrets.PULUMI_CONFIG_PASSPRASE }}
-
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
   deploy_qa:
     name: Deploy to QA (Feature Branch)
     if: github.event_name == 'push'
@@ -94,7 +93,7 @@ jobs:
           pulumi up --yes --non-interactive
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
-          PULUMI_CONFIG_PASSPRASE: ${{ secrets.PULUMI_CONFIG_PASSPRASE }}
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
 
   # -------------------------------------------------
   # Production Pipeline (for main branch)
@@ -128,7 +127,7 @@ jobs:
           pulumi preview --non-interactive
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
-          PULUMI_CONFIG_PASSPRASE: ${{ secrets.PULUMI_CONFIG_PASSPRASE }}
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
 
   deploy_prod:
     name: Deploy to Prod
@@ -154,7 +153,7 @@ jobs:
           pulumi up --yes --non-interactive
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
-          PULUMI_CONFIG_PASSPRASE: ${{ secrets.PULUMI_CONFIG_PASSPRASE }}
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
 
   # # -------------------------------------------------
   # # Destroy Jobs (Manual Trigger Only)
