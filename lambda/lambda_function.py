@@ -13,6 +13,6 @@ def handler(event, context):
             "Content-Type": "application/json"
         },
         "body": json.dumps({
-            "message": "Update Hello from your Lambda function deployed by Pulumi and GitHub Actions!"
+            "message": "Update Hello from your Lambda function deployed by Pulumi and GitHub Actions! Edited"
         })
     }
