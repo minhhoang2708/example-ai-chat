@@ -83,6 +83,7 @@ jobs:
         run: |
           ls 
           cd .. && ls
+          cd ../.. && ls
           pulumi login ${{ secrets.PULUMI_BACKEND_URL }}
           pulumi stack select dev --create
           pulumi up --yes --non-interactive
