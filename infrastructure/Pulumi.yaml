@@ -1,4 +1,4 @@
-name: pulumi-lambda-github-actions
+name: knowledge-base-agent
 runtime:
   name: python
   options:
