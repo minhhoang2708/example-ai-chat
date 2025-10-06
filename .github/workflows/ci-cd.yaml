@@ -82,8 +82,11 @@ jobs:
         working-directory: ./knowledge_base_agent/infrastructure
         run: |
           ls 
-          cd .. && ls
-          cd ../.. && ls
+          echo "----"
+          ls ..
+          echo "----"
+          ls ../..
+          echo "----"
           pulumi login ${{ secrets.PULUMI_BACKEND_URL }}
           pulumi stack select dev --create
           pulumi up --yes --non-interactive
