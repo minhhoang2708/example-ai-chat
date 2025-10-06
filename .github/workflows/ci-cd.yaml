@@ -45,10 +45,6 @@ jobs:
           pip install -r requirements.txt
           zip -r knowledge_base_agent.zip .
           mv knowledge_base_agent.zip ../knowledge_base_agent.zip
-          ls
-          echo "----"
-          ls ..
-          echo "----"
       - uses: actions/upload-artifact@v4
         with: { name: lambda-zip-qa, path: knowledge_base_agent.zip }
       - uses: aws-actions/configure-aws-credentials@v4
@@ -86,12 +82,6 @@ jobs:
       - name: Run Pulumi Deploy
         working-directory: ./knowledge_base_agent/infrastructure
         run: |
-          ls 
-          echo "----"
-          ls ..
-          echo "----"
-          ls ../..
-          echo "----"
           pulumi login ${{ secrets.PULUMI_BACKEND_URL }}
           pulumi stack select dev --create
           pulumi up --yes --non-interactive
@@ -108,10 +98,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Create Lambda ZIP
         run: |
-          pip install -r ./lambda/requirements.txt --target ./lambda
-          cd ./lambda && zip -r ../lambda.zip .
+          pip install -r requirements.txt
+          zip -r knowledge_base_agent.zip .
+          mv knowledge_base_agent.zip ../knowledge_base_agent.zip
       - uses: actions/upload-artifact@v4
-        with: { name: lambda-zip-prod, path: lambda.zip }
+        with: { name: lambda-zip-prod, path: knowledge_base_agent.zip }
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
