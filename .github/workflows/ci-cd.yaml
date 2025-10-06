@@ -96,7 +96,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Create Lambda ZIP
         run: |
-          pip install -r ./knowledge_base_agentrequirements.txt
+          pip install -r ./knowledge_base_agent/requirements.txt
           zip -r knowledge_base_agent.zip ./knowledge_base_agent
       - uses: actions/upload-artifact@v4
         with: { name: lambda-zip-prod, path: knowledge_base_agent.zip }
