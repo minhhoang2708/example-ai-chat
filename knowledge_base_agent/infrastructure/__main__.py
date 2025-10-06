@@ -37,12 +37,12 @@ aws.iam.RolePolicyAttachment(
 # 2. Define the Lambda Function Resource
 # The code for the function is an asset that points to the zip file.
 lambda_function = aws.lambda_.Function(
-    f"{project_name}-lambda-function-{stack_name}",
+    f"{project_name}-lambda-{stack_name}",
     # The handler value is `filename.function_name`.
     handler="lambda_function.handler",
     runtime="python3.13",
     role=lambda_role.arn,
-    code=pulumi.FileArchive("../lambda.zip"),
+    code=pulumi.FileArchive("../../knowledge_base_agent.zip"),
     description="A simple Python Lambda function deployed with Pulumi.",
     tags={
         "project": project_name,
