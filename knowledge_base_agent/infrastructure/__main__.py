@@ -42,7 +42,7 @@ lambda_function = aws.lambda_.Function(
     handler="lambda_function.handler",
     runtime="python3.13",
     role=lambda_role.arn,
-    code=pulumi.FileArchive("../lambda.zip"),
+    code=pulumi.FileArchive("../knowledge_base_agent.zip"),
     description="A simple Python Lambda function deployed with Pulumi.",
     tags={
         "project": project_name,
